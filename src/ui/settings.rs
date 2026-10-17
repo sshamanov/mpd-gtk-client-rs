@@ -158,7 +158,7 @@ pub(crate) fn show(
         let json = match cfg.export_layout_profile() {
             Ok(j) => j,
             Err(e) => {
-                ls_export.set_text(&format!("{}{e}", crate::strings::EXPORT_ERROR_PREFIX));
+                ls_export.set_text(&crate::strings::export_error(&e));
                 return;
             }
         };
@@ -186,7 +186,7 @@ pub(crate) fn show(
                 if let Ok(file) = result {
                     if let Some(path) = file.path() {
                         if let Err(e) = std::fs::write(&path, &json) {
-                            ls.set_text(&format!("{}{e}", crate::strings::EXPORT_FAILED_PREFIX));
+                            ls.set_text(&crate::strings::export_failed(&e));
                         } else {
                             ls.set_text(crate::strings::EXPORT_SUCCESS);
                         }
@@ -241,18 +241,12 @@ pub(crate) fn show(
                                         ls.set_text(crate::strings::IMPORT_SUCCESS);
                                     }
                                     Err(e) => {
-                                        ls.set_text(&format!(
-                                            "{}{e}",
-                                            crate::strings::IMPORT_FAILED_PREFIX
-                                        ));
+                                        ls.set_text(&crate::strings::import_failed(&e));
                                     }
                                 }
                             }
                             Err(e) => {
-                                ls.set_text(&format!(
-                                    "{}{e}",
-                                    crate::strings::IMPORT_READ_ERROR_PREFIX
-                                ));
+                                ls.set_text(&crate::strings::import_read_error(&e));
                             }
                         }
                     }

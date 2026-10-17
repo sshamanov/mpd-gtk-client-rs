@@ -34,19 +34,8 @@ pub fn run(
     application.add_action(&quit_action);
     application.set_accels_for_action("app.quit", &["<Ctrl>Q"]);
 
-    // Register remaining actions — handlers connected in build_ui where widgets exist
-    for (name, accels) in [
-        ("album-mode", &["<Ctrl>1"][..]),
-        ("folder-mode", &["<Ctrl>2"][..]),
-        ("search", &["<Ctrl>F"][..]),
-        ("settings", &["<Ctrl>comma"][..]),
-        ("shortcuts", &["<Ctrl>question"][..]),
-        ("toggle-sidebar", &["<Ctrl>B"][..]),
-    ] {
-        let action = SimpleAction::new(name, None);
-        application.add_action(&action);
-        application.set_accels_for_action(&format!("app.{name}"), accels);
-    }
+    // Mode, search, settings, shortcuts and sidebar actions (with their accels)
+    // are registered in ui::build_ui, where the widgets they act on exist.
 
     let event_rx = Arc::new(Mutex::new(event_rx));
 

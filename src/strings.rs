@@ -12,8 +12,6 @@ pub const WINDOW_TITLE: &str = "MPD Client";
 
 pub const MODE_ALBUM_TOOLTIP: &str = "Album Mode (Ctrl+1)";
 pub const MODE_FOLDER_TOOLTIP: &str = "Folder Mode (Ctrl+2)";
-pub const MODE_ALBUM: &str = "Album Mode";
-pub const MODE_FOLDER: &str = "Folder Mode";
 
 // ── Search ──
 
@@ -90,11 +88,7 @@ pub const CLOSE: &str = "Close";
 // ── Toast messages ──
 
 pub const TOAST_CONNECTION_LOST: &str = "MPD connection lost \u{2014} retrying..."; // —
-pub const TOAST_CONNECTION_FAILED_PREFIX: &str = "MPD connection failed: ";
-pub const TOAST_CONNECTION_FAILED_SUFFIX: &str = "\n\nCheck your MPD server and settings.";
 pub const TOAST_BATCH_ERROR: &str = "Batch error: unsupported sub-command";
-pub const TOAST_METADATA_FAILED: &str = "Metadata connection failed: ";
-pub const TOAST_MPD_ERROR_PREFIX: &str = "MPD Error: ";
 
 // ── Notification titles / bodies ──
 
@@ -151,9 +145,14 @@ pub fn month_usage_mb(usage_mb: f64) -> String {
     format!("Month-to-date usage: {usage_mb:.1} MB")
 }
 
-/// DSD summary badge (e.g. "DSD64", "DSD128").
-pub fn dsdbadge(bit_depth: u32) -> String {
-    format!("DSD{}", bit_depth * 64)
+/// Connection-failure toast with a hint to check server settings.
+pub fn connection_failed(e: &impl std::fmt::Display) -> String {
+    format!("MPD connection failed: {e}\n\nCheck your MPD server and settings.")
+}
+
+/// Metadata-connection failure toast.
+pub fn metadata_failed(e: &impl std::fmt::Display) -> String {
+    format!("Metadata connection failed: {e}")
 }
 
 // ── Keybinding action descriptions ──
@@ -258,9 +257,25 @@ pub fn dsd_tooltip(file_count: usize) -> String {
 
 // ── Settings feedback messages ──
 
-pub const EXPORT_ERROR_PREFIX: &str = "Export error: ";
-pub const EXPORT_FAILED_PREFIX: &str = "Export failed: ";
 pub const EXPORT_SUCCESS: &str = "Layout exported successfully";
 pub const IMPORT_SUCCESS: &str = "Layout profile imported successfully";
-pub const IMPORT_FAILED_PREFIX: &str = "Import failed: ";
-pub const IMPORT_READ_ERROR_PREFIX: &str = "Cannot read file: ";
+
+/// Layout profile serialization error.
+pub fn export_error(e: &impl std::fmt::Display) -> String {
+    format!("Export error: {e}")
+}
+
+/// Layout profile write failure.
+pub fn export_failed(e: &impl std::fmt::Display) -> String {
+    format!("Export failed: {e}")
+}
+
+/// Layout profile parse/apply failure.
+pub fn import_failed(e: &impl std::fmt::Display) -> String {
+    format!("Import failed: {e}")
+}
+
+/// Layout profile read failure.
+pub fn import_read_error(e: &impl std::fmt::Display) -> String {
+    format!("Cannot read file: {e}")
+}

@@ -1,11 +1,10 @@
 //! Application state — shared playback/queue state and mode-local browsing state. Thread: UI (single-threaded mutations).
 
 use crate::mpd::state_machine::MpdEvent;
-use crate::mpd::state_machine::ToastLevel;
 #[cfg(test)]
 use crate::mpd::state_machine::PlaybackUpdate;
 use crate::mpd::{Album, QueueItem, Track};
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use serde::{Serialize, Deserialize};
@@ -70,8 +69,6 @@ pub struct AppState {
     pub album_browsing: AlbumBrowsingState,
     pub folder_browsing: FolderBrowsingState,
     pub mode: Mode,
-    #[serde(skip)]
-    pub toast_queue: VecDeque<(String, ToastLevel)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -111,7 +108,6 @@ pub fn create_initial_state() -> SharedState {
             scroll_position: 0.0,
         },
         mode: Mode::Album,
-        toast_queue: VecDeque::new(),
     }))
 }
 
@@ -273,15 +269,10 @@ pub fn reduce(state: &mut AppState, event: &MpdEvent) {
         | MpdEvent::AlbumTracks(_)
         | MpdEvent::CoverPaths(_)
         | MpdEvent::CoverRefreshed { .. }
-        | MpdEvent::LibraryChanged => {}
-        // Error → toast for user-visible feedback
-        MpdEvent::Error(msg) => {
-            state.toast_queue.push_back((msg.clone(), ToastLevel::Error));
-        }
-        // Toast → enqueue for display (consumed by event_loop widget update)
-        MpdEvent::Toast { message, level } => {
-            state.toast_queue.push_back((message.clone(), *level));
-        }
+        | MpdEvent::LibraryChanged
+        // Toasts are transient UI feedback, displayed directly by event_loop.rs
+        | MpdEvent::Error(_)
+        | MpdEvent::Toast { .. } => {}
     }
 }
 
@@ -308,8 +299,7 @@ mod tests {
                 scroll_position: 0.0,
             },
             mode: Mode::Album,
-            toast_queue: VecDeque::new(),
-        }
+            }
     }
 
     #[test]

@@ -34,7 +34,7 @@ pub(crate) struct UiHandles {
     pub state: SharedState,
     pub metadata_cache: std::sync::Arc<crate::metadata::MetadataCache>,
     pub current_album: Rc<std::cell::RefCell<Option<String>>>,
-    pub current_song_pos: Cell<Option<i32>>,
+    pub current_song_pos: Rc<Cell<Option<i32>>>,
 
     // --- Now-playing widgets ---
     pub track_title: gtk4::Button,
@@ -141,24 +141,16 @@ pub(crate) fn process_events(
             }
             _ => None,
         };
+        // Single reducer entry point: every event updates AppState before widget work.
+        crate::state::apply_event(&handles.state, &event);
         match event {
             MpdEvent::Connected => {
-                crate::state::apply_event(&handles.state, &MpdEvent::Connected);
                 handles.search_cmd_tx.send(SearchCommand::Reset);
-                let _ = handles.cmd_tx.send(MpdCommand::ListAlbumsGrouped("Albums".into()));
+                let _ = handles.cmd_tx.send(MpdCommand::ListAlbumsGrouped(crate::strings::GROUP_ALBUMS.into()));
                 let _ = handles.cmd_tx.send(MpdCommand::ListQueue);
             }
-            MpdEvent::Connecting => {
-                crate::state::apply_event(&handles.state, &MpdEvent::Connecting);
-            }
-            MpdEvent::Disconnected => {
-                crate::state::apply_event(&handles.state, &MpdEvent::Disconnected);
-            }
+            MpdEvent::Connecting | MpdEvent::Disconnected => {}
             MpdEvent::StateChanged(update) => {
-                crate::state::apply_event(
-                    &handles.state,
-                    &MpdEvent::StateChanged(update.clone()),
-                );
                 handles.current_song_pos.set(update.song.map(|s| s as i32));
                 let album_changed = handles.current_album.borrow().as_deref()
                     != update.album.as_deref();
@@ -878,7 +870,7 @@ pub(crate) fn process_events(
             }
             MpdEvent::LibraryChanged => {
                 handles.search_cmd_tx.send(SearchCommand::Reset);
-                let _ = handles.cmd_tx.send(MpdCommand::ListAlbumsGrouped("Albums".into()));
+                let _ = handles.cmd_tx.send(MpdCommand::ListAlbumsGrouped(crate::strings::GROUP_ALBUMS.into()));
             }
             MpdEvent::Error(msg) => {
                 handles
@@ -904,8 +896,8 @@ pub(crate) fn process_events(
             }
         };
     }
-    if let Err(mpsc::TryRecvError::Disconnected) = guard.try_recv() {
-        return glib::ControlFlow::Break;
-    }
+    // Disconnect is detected by the loop above on the next tick; probing here
+    // with try_recv() would consume and drop a real event when the batch cap is hit.
+    drop(guard);
     glib::ControlFlow::Continue
 }

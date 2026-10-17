@@ -421,11 +421,7 @@ impl MpdEventLoop {
                                 }
                                 Err(e) => {
                                     let _ = event_tx.try_send(MpdEvent::Toast {
-                                        message: format!(
-                                            "{}{e}{}",
-                                            crate::strings::TOAST_CONNECTION_FAILED_PREFIX,
-                                            crate::strings::TOAST_CONNECTION_FAILED_SUFFIX,
-                                        ),
+                                        message: crate::strings::connection_failed(&e),
                                         level: ToastLevel::Error,
                                     });
                                     let b = ExponentialBackoff::new();
@@ -1655,7 +1651,7 @@ fn metadata_thread(
             Err(e) => {
                 log::error!("[mpd-metadata] connect failed: {e}");
                 let _ = event_tx.try_send(MpdEvent::Toast {
-                    message: format!("{}{e}", crate::strings::TOAST_METADATA_FAILED),
+                    message: crate::strings::metadata_failed(&e),
                     level: ToastLevel::Error,
                 });
             }

@@ -24,7 +24,6 @@ use std::sync::{Arc, Mutex};
 
 use grid::{AlbumCells, CELL_SLOT_H, CELL_SLOT_W, make_placeholder_cover, reposition};
 use queue::{MiniCell, MiniGridData, SharedIds};
-use theme::HC_CSS;
 use now_playing::find_album_boundary;
 
 pub fn build_ui(
@@ -1249,82 +1248,28 @@ pub fn build_ui(
             // layout passes, which starved the GTK main loop under heavy load.
             // Pinned header removed — user reported it doesn't work as expected
 
-            let fc_tl = track_title.clone();
-            let fc_ar = track_artist.clone();
-            let fc_al = track_album.clone();
-            let fc_yl = track_year.clone();
-            let fc_seekbar_cmd = cmd_tx.clone();
+            let seekbar_cmd = cmd_tx.clone();
             seekbar.connect_change_value(move |_, _, value| {
                 let pos = value as i64;
-                let _ = fc_seekbar_cmd.send(MpdCommand::Seek(pos));
+                let _ = seekbar_cmd.send(MpdCommand::Seek(pos));
                 glib::Propagation::Stop
             });
 
-            let fc_play_pause = play_pause_btn.clone();
-            let fc_status_dot = status_dot.clone();
-            let fc_pos = pos_label.clone();
-            let fc_len = len_label.clone();
-            let fc_seekbar = seekbar.clone();
-            let fc_fmt_label = fmt_label.clone();
-            let fc_bitrate_label = bitrate_label.clone();
-            let fc_np_cover = np_cover.clone();
-            let fc_np_cover_stack = np_cover_stack.clone();
-            let fc_popover_track_data = popover_track_data.clone();
-            let fc_track_listbox = track_listbox.clone();
-            let fc_queue_entries: std::rc::Rc<std::cell::RefCell<Vec<crate::mpd::QueueEntry>>> =
-                std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-            let fc_stack = left_stack.clone();
-            let fc_scroll = left_scroll.clone();
-            let fc_empty = empty_label.clone();
-            let fc_cmd = cmd_tx.clone();
-            let fc_fb = folder_browser.clone();
-            let fc_fs_list = folder_search_list.clone();
-            let fc_fs_container = folder_search_results.clone();
-            let fc_album_cap_note = album_cap_note.clone();
-            let fc_folder_cap_note = folder_cap_note.clone();
-            let fc_ql = queue_list.clone();
-            let fc_queue_popover = queue_popover.clone();
-            let fc_ids = item_ids_w.clone();
-            let fc_scmd = scmd.clone();
-            let fc_mc = metadata_cache.clone();
-            let fc_toast = toast_overlay.clone();
             let mem_toast = toast_overlay.clone();
-            let fc_ev_cover_paths = cover_paths.clone();
-            let fc_ev_cover_tex_cache = cover_texture_cache.clone();
-            let fc_mini_cw = mini_cover_widgets.clone();
-            let fc_ev_cells = album_cells.clone();
-            let fc_layout = album_layout.clone();
-            let fc_current_song_pos: std::cell::Cell<Option<i32>> = std::cell::Cell::new(None);
-            let fc_current_album: std::rc::Rc<std::cell::RefCell<Option<String>>> = std::rc::Rc::new(std::cell::RefCell::new(None));
-            let fc_shutdown = shutdown_app.clone();
 
-            // Mini grid captures and mode-aware queue stack switching
-            let fc_state = state.clone();
-            let fc_mpris_update = mpris_update_tx.clone();
-            let fc_mini_fixed = mini_fixed.clone();
-            let fc_mini_cells = mini_cells.clone();
-            let fc_mini_data = mini_grid_data.clone();
-            let fc_mini_current = mini_current_album.clone();
-            let fc_queue_stack = queue_stack.clone();
-            let fc_mini_scroll_ref = mini_scroll.clone();
-            let fc_queue_scroll_ref = queue_scroll.clone();
-            let fc_prev_mode: std::cell::Cell<crate::state::Mode> = std::cell::Cell::new(crate::state::Mode::Album);
-            let fc_sort_mode: u32 = 0; // fixed to artist sort (was DropDown)
-            let fc_multi_view = multi_view.clone();
-            let fc_bottom_panel = bp.panel.clone();
-            let fc_bottom_sheet = bottom_sheet.clone();
-            let fc_bp_title = bp.title.clone();
-            let fc_bp_play = bp.play.clone();
-            let fc_track_revealer = track_revealer.clone();
-            let fc_last_repos_w: std::cell::Cell<f64> = std::cell::Cell::new(0.0);
+            // Shared between button handlers and the event loop. current_song_pos must be
+            // Rc<Cell>: cloning a bare Cell copies its value, leaving handlers with a stale copy.
+            let queue_entries: std::rc::Rc<std::cell::RefCell<Vec<crate::mpd::QueueEntry>>> =
+                std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+            let current_song_pos: std::rc::Rc<std::cell::Cell<Option<i32>>> =
+                std::rc::Rc::new(std::cell::Cell::new(None));
 
             // Wire popover track listbox: click row → play that track
-            let tv_cmd = fc_cmd.clone();
-            let tv_data = fc_popover_track_data.clone();
-            let tv_entries = fc_queue_entries.clone();
-            let tv_revealer = fc_track_revealer.clone();
-            let tv_listbox = fc_track_listbox.clone();
-            tv_listbox.connect_row_activated(move |_list, row| {
+            let tv_cmd = cmd_tx.clone();
+            let tv_data = popover_track_data.clone();
+            let tv_entries = queue_entries.clone();
+            let tv_revealer = track_revealer.clone();
+            track_listbox.connect_row_activated(move |_list, row| {
                 let idx = row.index() as usize;
                 let data = tv_data.borrow();
                 if let Some((_, file, _)) = data.get(idx) {
@@ -1340,18 +1285,18 @@ pub fn build_ui(
             });
 
             // Wire play/pause button
-            let pp_cmd = fc_cmd.clone();
+            let pp_cmd = cmd_tx.clone();
             play_pause_btn.connect_clicked(move |_| { let _ = pp_cmd.send(MpdCommand::Pause); });
 
             // Wire prev/next track buttons
-            let pt_cmd = fc_cmd.clone();
+            let pt_cmd = cmd_tx.clone();
             prev_track_btn.connect_clicked(move |_| { let _ = pt_cmd.send(MpdCommand::Previous); });
-            let nt_cmd = fc_cmd.clone();
+            let nt_cmd = cmd_tx.clone();
             next_track_btn.connect_clicked(move |_| { let _ = nt_cmd.send(MpdCommand::Next); });
 
             // Bottom queue button → toggle BottomSheet in narrow mode
-            let bq_mv = fc_multi_view.clone();
-            let bq_bs = fc_bottom_sheet.clone();
+            let bq_mv = multi_view.clone();
+            let bq_bs = bottom_sheet.clone();
             bp.queue_btn.connect_clicked(move |_| {
                 if bq_mv.layout_name().as_deref() == Some("narrow") {
                     bq_bs.set_open(!bq_bs.is_open());
@@ -1359,85 +1304,83 @@ pub fn build_ui(
             });
 
             // Wire prev/next album buttons
-            let pa_cmd = fc_cmd.clone();
-            let pa_entries = fc_queue_entries.clone();
-            let pa_pos = fc_current_song_pos.clone();
+            let pa_cmd = cmd_tx.clone();
+            let pa_entries = queue_entries.clone();
+            let pa_pos = current_song_pos.clone();
             prev_album_btn.connect_clicked(move |_| {
                 let entries = pa_entries.borrow();
-                let csp = pa_pos.get();
-                if let Some(pos) = find_album_boundary(&entries, csp, false) {
+                if let Some(pos) = find_album_boundary(&entries, pa_pos.get(), false) {
                     let _ = pa_cmd.send(MpdCommand::PlayPosition(pos));
                 }
             });
-            let na_cmd = fc_cmd.clone();
-            let na_entries = fc_queue_entries.clone();
-            let na_pos = fc_current_song_pos.clone();
+            let na_cmd = cmd_tx.clone();
+            let na_entries = queue_entries.clone();
+            let na_pos = current_song_pos.clone();
             next_album_btn.connect_clicked(move |_| {
                 let entries = na_entries.borrow();
-                let csp = na_pos.get();
-                if let Some(pos) = find_album_boundary(&entries, csp, true) {
+                if let Some(pos) = find_album_boundary(&entries, na_pos.get(), true) {
                     let _ = na_cmd.send(MpdCommand::PlayPosition(pos));
                 }
             });
 
             // Build UiHandles for the event dispatch loop (story 43-4)
             let handles = event_loop::UiHandles {
-                cmd_tx: fc_cmd.clone(),
-                search_cmd_tx: fc_scmd.clone(),
-                mpris_update_tx: fc_mpris_update.clone(),
-                toast_overlay: fc_toast.clone(),
-                state: fc_state.clone(),
-                metadata_cache: fc_mc.clone(),
-                current_album: fc_current_album.clone(),
-                current_song_pos: fc_current_song_pos.clone(),
-                track_title: fc_tl.clone(),
-                track_artist: fc_ar.clone(),
-                track_album: fc_al.clone(),
-                track_year: fc_yl.clone(),
-                play_pause_btn: fc_play_pause.clone(),
-                status_dot: fc_status_dot.clone(),
-                pos_label: fc_pos.clone(),
-                len_label: fc_len.clone(),
-                seekbar: fc_seekbar.clone(),
-                fmt_label: fc_fmt_label.clone(),
-                bitrate_label: fc_bitrate_label.clone(),
-                np_cover: fc_np_cover.clone(),
-                np_cover_stack: fc_np_cover_stack.clone(),
-                bp_title: fc_bp_title.clone(),
-                bp_play: fc_bp_play.clone(),
-                queue_list: fc_ql.clone(),
-                queue_popover: fc_queue_popover.clone(),
-                item_ids: fc_ids.clone(),
-                queue_entries: fc_queue_entries.clone(),
-                track_listbox: fc_track_listbox.clone(),
-                popover_track_data: fc_popover_track_data.clone(),
-                album_cells: fc_ev_cells.clone(),
-                album_layout: fc_layout.clone(),
-                cover_paths: fc_ev_cover_paths.clone(),
-                texture_cache: fc_ev_cover_tex_cache.clone(),
-                left_stack: fc_stack.clone(),
-                left_scroll: fc_scroll.clone(),
-                empty_label: fc_empty.clone(),
-                album_cap_note: fc_album_cap_note.clone(),
-                mini_fixed: fc_mini_fixed.clone(),
-                mini_cells: fc_mini_cells.clone(),
-                mini_data: fc_mini_data.clone(),
-                mini_current: fc_mini_current.clone(),
-                mini_cover_widgets: fc_mini_cw.clone(),
-                mini_scroll: fc_mini_scroll_ref.clone(),
-                folder_browser: fc_fb.clone(),
-                folder_search_list: fc_fs_list.clone(),
-                folder_search_results: fc_fs_container.clone(),
-                folder_cap_note: fc_folder_cap_note.clone(),
-                multi_view: fc_multi_view.clone(),
-                bottom_panel: fc_bottom_panel.clone(),
-                bottom_sheet: fc_bottom_sheet.clone(),
-                queue_stack: fc_queue_stack.clone(),
-                queue_scroll: fc_queue_scroll_ref.clone(),
-                prev_mode: fc_prev_mode.clone(),
-                last_repos_w: fc_last_repos_w.clone(),
-                shutdown: fc_shutdown.clone(),
-                sort_mode: fc_sort_mode,
+                cmd_tx: cmd_tx.clone(),
+                search_cmd_tx: scmd.clone(),
+                mpris_update_tx: mpris_update_tx.clone(),
+                toast_overlay: toast_overlay.clone(),
+                state: state.clone(),
+                metadata_cache: metadata_cache.clone(),
+                current_album: std::rc::Rc::new(std::cell::RefCell::new(None)),
+                current_song_pos,
+                track_title: track_title.clone(),
+                track_artist: track_artist.clone(),
+                track_album: track_album.clone(),
+                track_year: track_year.clone(),
+                play_pause_btn: play_pause_btn.clone(),
+                status_dot: status_dot.clone(),
+                pos_label: pos_label.clone(),
+                len_label: len_label.clone(),
+                seekbar: seekbar.clone(),
+                fmt_label: fmt_label.clone(),
+                bitrate_label: bitrate_label.clone(),
+                np_cover: np_cover.clone(),
+                np_cover_stack: np_cover_stack.clone(),
+                bp_title: bp.title.clone(),
+                bp_play: bp.play.clone(),
+                queue_list: queue_list.clone(),
+                queue_popover: queue_popover.clone(),
+                item_ids: item_ids_w.clone(),
+                queue_entries,
+                track_listbox: track_listbox.clone(),
+                popover_track_data: popover_track_data.clone(),
+                album_cells: album_cells.clone(),
+                album_layout: album_layout.clone(),
+                cover_paths: cover_paths.clone(),
+                texture_cache: cover_texture_cache.clone(),
+                left_stack: left_stack.clone(),
+                left_scroll: left_scroll.clone(),
+                empty_label: empty_label.clone(),
+                album_cap_note: album_cap_note.clone(),
+                mini_fixed: mini_fixed.clone(),
+                mini_cells: mini_cells.clone(),
+                mini_data: mini_grid_data.clone(),
+                mini_current: mini_current_album.clone(),
+                mini_cover_widgets: mini_cover_widgets.clone(),
+                mini_scroll: mini_scroll.clone(),
+                folder_browser: folder_browser.clone(),
+                folder_search_list: folder_search_list.clone(),
+                folder_search_results: folder_search_results.clone(),
+                folder_cap_note: folder_cap_note.clone(),
+                multi_view: multi_view.clone(),
+                bottom_panel: bp.panel.clone(),
+                bottom_sheet: bottom_sheet.clone(),
+                queue_stack: queue_stack.clone(),
+                queue_scroll: queue_scroll.clone(),
+                prev_mode: std::cell::Cell::new(crate::state::Mode::Album),
+                last_repos_w: std::cell::Cell::new(0.0),
+                shutdown: shutdown_app.clone(),
+                sort_mode: 0, // fixed to artist sort (was DropDown)
                 search_gen: search_gen.clone(),
                 active_group: active_group.clone(),
             };
@@ -1499,55 +1442,7 @@ pub fn build_ui(
                 event_loop::process_events(&handles, &tick_rx, &tick_toast_tx, grid_est_width, mini_vpw_est)
             });
 
-            // Load CSS from external file (embedded at compile time via include_str!)
-            let css = gtk4::CssProvider::new();
-            css.load_from_bytes(&glib::Bytes::from_static(include_str!("style.css").as_bytes()));
-            gtk4::style_context_add_provider_for_display(
-                &gtk4::prelude::WidgetExt::display(&window),
-                &css,
-                gtk4::STYLE_PROVIDER_PRIORITY_USER,
-            );
-
-            // High contrast CSS support (accessibility)
-            let hc_css_cell: std::cell::Cell<Option<gtk4::CssProvider>> = std::cell::Cell::new(None);
-            let should_enable_hc = cfg.high_contrast
-                || std::env::var("GTK_THEME").as_deref() == Ok("HighContrast")
-                || std::env::var("GTK_THEME").as_deref() == Ok("Adwaita:highcontrast");
-            if should_enable_hc {
-                let hc_provider = gtk4::CssProvider::new();
-                hc_provider.load_from_string(HC_CSS);
-                gtk4::style_context_add_provider_for_display(
-                    &gtk4::prelude::WidgetExt::display(&window),
-                    &hc_provider,
-                    gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
-                );
-                hc_css_cell.set(Some(hc_provider));
-            }
-
-            // Memory monitoring timer (30s interval, rate-limited warnings at 60s)
-            let mem_last_warning: std::rc::Rc<std::cell::RefCell<Option<std::time::Instant>>> =
-                std::rc::Rc::new(std::cell::RefCell::new(None));
-            glib::timeout_add_local(std::time::Duration::from_secs(30), move || {
-                if let Some(rss_mb) = crate::memory::read_rss_mb() {
-                    let threshold = crate::config::Config::load().memory.warning_threshold_mb;
-                    if rss_mb >= threshold {
-                        let mut last = mem_last_warning.borrow_mut();
-                        let now = std::time::Instant::now();
-                        let should_warn = match *last {
-                            Some(t) => now.duration_since(t).as_secs() >= 60,
-                            None => true,
-                        };
-                        if should_warn {
-                            *last = Some(now);
-                            let toast = adw::Toast::new(&crate::strings::memory_warning(rss_mb));
-                            toast.set_timeout(5);
-                            mem_toast.add_toast(toast);
-                        }
-                    }
-                } else {
-                    log::debug!("[memory] /proc/self/status unreadable, skipping memory check");
-                }
-                glib::ControlFlow::Continue
-            });
+            theme::install_css(&window, cfg.high_contrast);
+            theme::start_memory_monitor(mem_toast);
 }
 
